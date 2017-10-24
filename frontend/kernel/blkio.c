@@ -87,26 +87,28 @@ static bdbm_blkio_req_t* __get_blkio_req (struct bio *bio)
 
 
 	/* get the type of the bio request */
-	if (bio->bi_rw & REQ_DISCARD){
+	if (bio_op(bio) == REQ_OP_DISCARD){
     //    printk("BDBM_DRV: TRIM Start\n");
 		br->bi_rw = REQTYPE_TRIM;
     }
-	else if (bio_data_dir (bio) == READ || bio_data_dir (bio) == READA){
+	else if (bio_op(bio) == REQ_OP_READ){
      //   printk("BDBM_DRV: READ Start\n");
 		br->bi_rw = REQTYPE_READ;
     }
-	else if (bio_data_dir (bio) == WRITE){
+	else if (bio_op(bio) == REQ_OP_WRITE){
     //    printk("BDBM_DRV: WRITE Start\n");
 		br->bi_rw = REQTYPE_WRITE;
-        if (bio->bi_rw & REQ_FUA){
+
+        if (bio->bi_opf & REQ_FUA){
             br->bi_rw = br->bi_rw | REQTYPE_FUA;
         }
-        if (bio->bi_rw & REQ_SYNC){
+
+        if (bio->bi_opf & REQ_SYNC){
             br->bi_rw = br->bi_rw | REQTYPE_SYNC;
         }
     }
     else {
-        bdbm_error ("oops! invalid request type (bi->bi_rw = %lx)", bio->bi_rw);
+        bdbm_error ("oops! invalid request type (bi->bi_opf = %lx)", bio->bi_opf);
         goto fail;
     }
 

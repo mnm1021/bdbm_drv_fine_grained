@@ -33,12 +33,20 @@ THE SOFTWARE.
 #include <linux/delay.h>
 #include <linux/kthread.h>
 #include <linux/sched.h>
+#include <linux/wait.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4,11,0)
+#include <linux/sched/signal.h>
+#endif
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(3,5,0)
 #define bdbm_daemonize(a) daemonize(a)
 #else
 #define bdbm_daemonize(a)
 #endif
+
+typedef struct wait_queue_entry wait_queue_t;
+
 
 typedef struct {
 	/* thread management */
