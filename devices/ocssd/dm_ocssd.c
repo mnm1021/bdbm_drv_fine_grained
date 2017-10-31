@@ -43,7 +43,10 @@ bdbm_dm_inf_t _bdbm_dm_inf = {
 
 extern bdbm_drv_info_t* _bdi_dm;
 
-/* NVMe device command */
+/********************************************
+ * structs required for request translation *
+ ********************************************/
+
 typedef struct {
 	__u8	opcode;
 	__u8	flags;
@@ -60,7 +63,6 @@ typedef struct {
 	__le64	slba;
 } bdbm_nvme_command;
 
-/* structs required for conversion */
 struct nvme_ns {
 	struct list_head list;
 
@@ -87,6 +89,7 @@ struct nvme_ns {
 #define NVME_NS_DEAD     1
 	u16 noiob;
 };
+
 struct nvme_request {
 	struct nvme_command	*cmd;
 	union nvme_result	result;
@@ -95,10 +98,17 @@ struct nvme_request {
 	u16			status;
 };
 
+/**
+ * translator between struct request and struct nvme_request.
+ */
 static inline struct nvme_request *nvme_req(struct request *req)
 {
 	return blk_mq_rq_to_pdu(req);
 }
+
+/************************************
+ * functions for request submission *
+ ************************************/
 
 /**
  * convert BlueDBM's low-level request into NVMe command.
@@ -199,6 +209,9 @@ static struct request* dm_nvme_alloc_request(struct request_queue *q,
 
 /**
  * callback function for I/O.
+ *
+ * @param rq (struct request *):	request handled by device.
+ * @param status (blk_status_t):	status by device
  */
 static void dm_nvm_end_io (struct request *rq, blk_status_t status)
 {
@@ -256,12 +269,14 @@ static uint32_t dm_nvm_submit_io (struct nvm_dev* dev, bdbm_llm_req_t* req)
 	return 0;
 }
 
-/* device management functions */
+/***********************************
+ * functions for device management *
+ ***********************************/
 
 /**
- * Initializes and finds the NVMe Device from kernel.
- * 'params' does not really care for this function,
- * since device specification is fixed for CNEX-8800.
+ * Finds the NVMe Device from kernel.
+ * tip) 'params' does not really work for this function,
+ *       since device specification is fixed for CNEX-8800.
  *
  * @param bdi (bdbm_drv_info_t *): 			device information
  * @param params (bdbm_device_params_t *): 	given parameters
@@ -270,11 +285,15 @@ static uint32_t dm_nvm_submit_io (struct nvm_dev* dev, bdbm_llm_req_t* req)
 uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 {
 	/* TODO find NVMe Device. */
+
+	/* TODO keep private info to bdi */
+	/* bdi->ptr_dm_inf->ptr_private = (void *)nvm_dev; */
+	/* ptr_private should have a pointer of struct nvm_dev. */
+
 	return -1;
 }
 
 /**
- * TODO don't know what would come here, maybe probe can do it all.
  * Creates target block device from given NVMe Device.
  *
  * @param bdi (bdbm_drv_info_t *): 	device information
@@ -306,7 +325,7 @@ void dm_ocssd_close (bdbm_drv_info_t* bdi)
  */
 uint32_t dm_ocssd_make_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 {
-	struct nvm_dev* dev = NULL; /* TODO get nvm_dev from bdi */
+	struct nvm_dev* dev = (struct nvm_dev *)bdi->ptr_dm_inf->ptr_private;
 	return dm_nvm_submit_io(dev, ptr_llm_req);
 }
 
@@ -323,7 +342,7 @@ uint32_t dm_ocssd_make_reqs (bdbm_drv_info_t* bdi, bdbm_hlm_req_t* hr)
 
 	uint32_t i, ret = 1;
 	bdbm_llm_req_t* lr = NULL;
-	struct nvm_dev* dev = NULL; /* TODO get nvm_dev from bdi */
+	struct nvm_dev* dev = (struct nvm_dev *)bdi->ptr_dm_inf->ptr_private;
 
 	bdbm_hlm_for_each_llm_req (lr, hr, i) {
 		if ((ret = dm_nvm_submit_io (dev, lr)) != 0) {
