@@ -5,8 +5,8 @@ cscope.*
 ncscope.*
 
 # ignore object files
-.o
-.cmd
+*.o
+.*.cmd
 
 # include gitignore
 !.gitignore
