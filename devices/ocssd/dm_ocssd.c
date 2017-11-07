@@ -28,6 +28,9 @@
 
 #define NVME_QID_ANY -1
 
+extern struct list_head nvm_devices;
+extern struct rw_semaphore nvm_lock;
+
 /* interface for dm */
 bdbm_dm_inf_t _bdbm_dm_inf = {
 	.ptr_private = NULL,
@@ -282,6 +285,18 @@ static uint32_t dm_nvm_submit_io (struct nvm_dev* dev, bdbm_llm_req_t* req)
  * @param params (bdbm_device_params_t *): 	given parameters
  * @return: 								0 if successful, else if not.
  */
+
+static struct nvm_dev *nvm_find_nvm_dev(const char *name)
+{
+	struct nvm_dev *dev;
+
+	list_for_each_entry(dev, &nvm_devices, devices)
+		if (!strcmp(name, dev->name))
+			return dev;
+
+	return NULL;
+}
+
 uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 {
 	/* TODO find NVMe Device. */
@@ -289,8 +304,31 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 	/* TODO keep private info to bdi */
 	/* bdi->ptr_dm_inf->ptr_private = (void *)nvm_dev; */
 	/* ptr_private should have a pointer of struct nvm_dev. */
+	
+	struct nvm_dev *dev;
+	char *name = "nvme0n1";
 
-	return -1;
+	*params = get_default_device_params();
+	bdi->parm_dev = *params;
+
+	display_device_params (params);	
+
+	down_write(&nvm_lock);
+	dev = nvm_find_nvm_dev(name);
+	up_write(&nvm_lock);
+
+	
+	if (!dev) {
+		pr_err("nvm: device not found\n");
+		return -EINVAL;
+	}
+
+	bdi->ptr_dm_inf->ptr_private = (void *)dev;
+
+	bdbm_msg ("[dm_ocssd_probe] probe done!");
+
+	return 0;
+	
 }
 
 /**
@@ -302,7 +340,9 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 uint32_t dm_ocssd_open (bdbm_drv_info_t* bdi)
 {
 	/* TODO initialize NVMe target device. */
-	return -1;
+	
+	// do nothing
+	return 0;
 }
 
 /**
@@ -313,7 +353,10 @@ uint32_t dm_ocssd_open (bdbm_drv_info_t* bdi)
  */
 void dm_ocssd_close (bdbm_drv_info_t* bdi)
 {
+	
 	/* TODO close target device. */
+	//do nothing
+
 }
 
 /**

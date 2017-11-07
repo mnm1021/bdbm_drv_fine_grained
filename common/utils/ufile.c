@@ -74,43 +74,45 @@ void bdbm_fclose (bdbm_file_t file)
 
 uint64_t bdbm_fread (bdbm_file_t file, uint64_t offset, uint8_t* data, uint64_t size) 
 {
-	mm_segment_t oldfs;
-	uint64_t ret = 0;
-	uint64_t len = 0;
-
-	oldfs = get_fs ();
-	set_fs (get_ds());
-	while (len < size) {
-		if ((ret = vfs_read (file, data + len, size - len, &offset)) == 0)
-			break;
-		/*if (len < size) {*/
-		/*bdbm_msg ("ret=%llu, len=%llu, offset=%llu", ret, len, offset);*/
-		/*}*/
-		offset += ret;
-		len += ret;
-	}
-	/*ret = vfs_read (file, data, size, &offset);*/
-	set_fs (oldfs);
-	return len;
+//	mm_segment_t oldfs;
+//	uint64_t ret = 0;
+//	uint64_t len = 0;
+//
+//	oldfs = get_fs ();
+//	set_fs (get_ds());
+//	while (len < size) {
+//		if ((ret = vfs_read (file, data + len, size - len, &offset)) == 0)
+//			break;
+//		/*if (len < size) {*/
+//		/*bdbm_msg ("ret=%llu, len=%llu, offset=%llu", ret, len, offset);*/
+//		/*}*/
+//		offset += ret;
+//		len += ret;
+//	}
+//	/*ret = vfs_read (file, data, size, &offset);*/
+//	set_fs (oldfs);
+//	return len;
+	return 0;
 } 
 
 uint64_t bdbm_fwrite (bdbm_file_t file, uint64_t offset, uint8_t* data, uint64_t size) 
 {
-	mm_segment_t oldfs;
-	uint64_t ret = 0;
-	uint64_t len = 0;
-
-	oldfs = get_fs ();
-	set_fs (get_ds ());
-	while (len < size) {
-		if ((ret = vfs_write (file, data + len, size - len, &offset)) == 0)
-			break;
-		offset += ret;
-		len += ret;
-	}
-	/*ret = vfs_write (file, data, size, &offset);*/
-	set_fs (oldfs);
-	return ret;
+//	mm_segment_t oldfs;
+//	uint64_t ret = 0;
+//	uint64_t len = 0;
+//
+//	oldfs = get_fs ();
+//	set_fs (get_ds ());
+//	while (len < size) {
+//		if ((ret = vfs_write (file, data + len, size - len, &offset)) == 0)
+//			break;
+//		offset += ret;
+//		len += ret;
+//	}
+//	/*ret = vfs_write (file, data, size, &offset);*/
+//	set_fs (oldfs);
+//	return ret;
+	return 0;
 }
 
 uint32_t bdbm_funlink (bdbm_file_t file)

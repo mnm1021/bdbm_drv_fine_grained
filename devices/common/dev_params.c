@@ -43,17 +43,34 @@ THE SOFTWARE.
 #include "debug.h"
 
 enum BDBM_DEFAULT_NAND_PARAMS {
+	/*
 	NAND_PAGE_SIZE = 4096*BDBM_MAX_PAGES,
 	NAND_PAGE_OOB_SIZE = 64*BDBM_MAX_PAGES,
 	NR_PAGES_PER_BLOCK = 512, // 128
 	NR_BLOCKS_PER_CHIP = 1024, // 256
 	NR_CHIPS_PER_CHANNEL = 2,
 	NR_CHANNELS = 4, 
+	*/
+	//NAND_HOST_BUS_TRANS_TIME_US = 0,	/* assume to be 0 */
+	//NAND_CHIP_BUS_TRANS_TIME_US = 100,	/* 100us */
+	//NAND_PAGE_PROG_TIME_US = 130,		/* 1.3ms */	
+	//NAND_PAGE_READ_TIME_US = 220,		/* 100us */
+	//NAND_BLOCK_ERASE_TIME_US = 5000,	/* 3ms */
+
+	NAND_PAGE_SIZE = 4096*BDBM_MAX_PAGES,
+	NAND_PAGE_OOB_SIZE = 64*BDBM_MAX_PAGES,	//????
+	NR_PAGES_PER_BLOCK = 256, 
+	NR_BLOCKS_PER_CHIP = 1065, 		//????
+	NR_CHIPS_PER_CHANNEL = 8,		
+	NR_CHANNELS = 16, 
+	
+	//below ????
 	NAND_HOST_BUS_TRANS_TIME_US = 0,	/* assume to be 0 */
 	NAND_CHIP_BUS_TRANS_TIME_US = 100,	/* 100us */
 	NAND_PAGE_PROG_TIME_US = 130,		/* 1.3ms */	
 	NAND_PAGE_READ_TIME_US = 220,		/* 100us */
 	NAND_BLOCK_ERASE_TIME_US = 5000,	/* 3ms */
+	
 };
 
 int _param_nr_channels 				= NR_CHANNELS;
@@ -81,6 +98,8 @@ int _param_device_type = DEVICE_TYPE_BLUEDBM;
 int _param_device_type = DEVICE_TYPE_USER_DUMMY;
 #elif defined (CONFIG_DEVICE_TYPE_USER_RAMDRIVE)
 int _param_device_type = DEVICE_TYPE_USER_RAMDRIVE;
+#elif defined (CONFIG_DEVICE_TYPE_OCSSD)
+int _param_device_type = DEVICE_TYPE_OCSSD;
 #else
 int _param_device_type = DEVICE_TYPE_NOT_SPECIFIED;
 #endif
@@ -166,7 +185,7 @@ void display_device_params (bdbm_device_params_t* p)
 	bdbm_msg ("# of subpages per page = %llu", p->nr_subpages_per_page);
     bdbm_msg ("page main size  = %llu bytes", p->page_main_size);
     bdbm_msg ("page oob size = %llu bytes", p->page_oob_size);
-	bdbm_msg ("device type = %u (1: ramdrv, 2: ramdrive (intr), 3: ramdrive (timing), 4: BlueDBM, 5: libdummy, 6: libramdrive)", 
+	bdbm_msg ("device type = %u (1: ramdrv, 2: ramdrive (intr), 3: ramdrive (timing), 4: BlueDBM, 5: OCSSD, 6: libdummy, 7: libramdrive)", 
 			p->device_type);
     bdbm_msg ("");
 }
