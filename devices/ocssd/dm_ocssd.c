@@ -134,20 +134,28 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
  */
 uint32_t dm_ocssd_open (bdbm_drv_info_t* bdi)
 {
-	int block_no, punit_id, plane_no;
-
-	/* erase blocks. */
-	for (punit_id = 0; punit_id < 128; ++punit_id)
-	{
-		pr_info ("bdbm: erasing blocks.... (%d/127)\n", punit_id);
-		for (block_no = 0; block_no < 32; ++block_no)
-		{
-			for (plane_no = 0; plane_no < 4; ++plane_no)
-			{
-				/* TODO erase block without callback */
-			}
-		}
-	}
+//	struct nvm_dev* dev;
+//	bdbm_llm_req_t e_req;
+//	int block_no, punit_id;
+//
+//	dev = (struct nvm_dev*)bdi->ptr_dm_inf->ptr_private;
+//
+//	memset (&e_req, 0x00, sizeof (bdbm_llm_req_t));
+//	e_req.req_type = REQTYPE_GC_ERASE;
+//
+//	/* erase blocks. */
+//	for (punit_id = 0; punit_id < 128; ++punit_id)
+//	{
+//		e_req.phyaddr.punit_id = punit_id / 16;
+//		e_req.phyaddr.channel_no = punit_id % 16;
+//		pr_info ("bdbm: erasing blocks.... (%d/127)\n", punit_id);
+//
+//		for (block_no = 0; block_no < 32; ++block_no)
+//		{
+//			e_req.phyaddr.block_no = block_no;
+//			dev_ocssd_submit_vio (dev, &e_req);
+//		}
+//	}
 	pr_info ("bdbm: erasing blocks.... done! OCSSD is initialized.\n");
 	
 	return 0;
@@ -173,7 +181,6 @@ void dm_ocssd_close (bdbm_drv_info_t* bdi)
 uint32_t dm_ocssd_make_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 {
 	struct nvm_dev* dev;
-	struct bio* bio;
 	int ret = -1;
 
 	if (bdi == NULL)
@@ -205,6 +212,7 @@ uint32_t dm_ocssd_make_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 void dm_ocssd_end_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 {
 	bdbm_bug_on (ptr_llm_req == NULL);
+	bdbm_bug_on (ptr_llm_req->ptr_qitem == NULL);
 	bdi->ptr_llm_inf->end_req (bdi, ptr_llm_req);
 }
 

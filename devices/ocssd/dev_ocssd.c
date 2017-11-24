@@ -183,12 +183,13 @@ static struct nvm_user_vio* dev_ocssd_create_vio (
 	return vio;
 }
 
-static void dev_ocssd_end_vio (struct nvm_user_vio* vio, bdbm_llm_req_t* req)
+static void dev_ocssd_end_vio (struct nvm_user_vio* vio,
+		bdbm_llm_req_t* req, int result)
 {
 	uint8_t* addr = (uint8_t*)vio->addr;
 	int i;
 
-	if (vio->opcode == 0x92)
+	if (vio->opcode == 0x92 && !result)
 	{
 		for (i = 0; i < 16; ++i)
 			memcpy (req->fmain.kp_ptr[i], 0x1000 * i + addr, 0x1000);
@@ -200,7 +201,8 @@ static void dev_ocssd_end_vio (struct nvm_user_vio* vio, bdbm_llm_req_t* req)
 	kfree (vio);
 }
 
-uint32_t dev_ocssd_submit_vio (struct nvm_dev* dev, bdbm_llm_req_t* req)
+uint32_t dev_ocssd_submit_vio (struct nvm_dev* dev,
+		bdbm_llm_req_t* req)
 {
 	struct nvme_ns* ns = dev->q->queuedata;
 	struct nvm_user_vio* vio = dev_ocssd_create_vio (dev, req);
@@ -212,7 +214,7 @@ uint32_t dev_ocssd_submit_vio (struct nvm_dev* dev, bdbm_llm_req_t* req)
 		/* TODO log */
 	}
 
-	dev_ocssd_end_vio (vio, req);
+	dev_ocssd_end_vio (vio, req, result);
 
 	return result;
 }

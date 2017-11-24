@@ -14,6 +14,7 @@
 #include <linux/bio.h>
 #include <linux/lightnvm.h>
 
-uint32_t dev_ocssd_submit_vio (struct nvm_dev* dev, bdbm_llm_req_t* req);
+uint32_t dev_ocssd_submit_vio (struct nvm_dev* dev,
+		bdbm_llm_req_t* req);
 
 #endif
