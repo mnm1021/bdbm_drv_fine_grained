@@ -80,8 +80,8 @@ enum BDBM_PFTL_PAGE_STATUS {
 
 typedef struct {
 	uint8_t status; /* BDBM_PFTL_PAGE_STATUS */
-	bdbm_phyaddr_t phyaddr; /* physical location */
 	uint8_t sp_off;
+	bdbm_phyaddr_t phyaddr; /* physical location */
 } bdbm_page_mapping_entry_t;
 
 typedef struct {

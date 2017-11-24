@@ -127,15 +127,15 @@ enum BDBM_REQTYPE {
 
 /* a physical address */
 typedef struct {
-	uint64_t punit_id;
-	uint64_t channel_no;
-	uint64_t chip_no;
-	uint64_t block_no;
-	uint64_t page_no;
+	uint8_t punit_id;
+	uint8_t channel_no;
+	uint8_t chip_no;
+	uint8_t page_no;
+	uint16_t block_no;
 } bdbm_phyaddr_t;
 
 /* max kernel pages per physical flash page */
-#define BDBM_MAX_PAGES 1
+#define BDBM_MAX_PAGES 16
 
 /* a bluedbm blockio request */
 #define BDBM_BLKIO_MAX_VECS 512

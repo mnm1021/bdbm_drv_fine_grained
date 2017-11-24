@@ -26,6 +26,7 @@ risa_dev_ocssd-y := \
 	$(DEV_COMMON)/dev_params.o \
 	$(DEV_COMMON)/dev_stub.o \
 	dm_ocssd.o \
+	dev_ocssd.o \
 
 obj-m := risa_dev_ocssd.o
 
