@@ -13,6 +13,7 @@
 #include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/blk-mq.h>
+#include <linux/mempool.h>
 
 //for debug purpose
 #include <linux/delay.h>
@@ -37,6 +38,10 @@
 extern struct list_head nvm_devices;
 extern struct rw_semaphore nvm_lock;
 
+static struct kmem_cache *general_rq_cache, *write_rq_cache;
+static int init_global_caches (void);
+static void free_global_caches (void);
+
 /* interface for dm */
 bdbm_dm_inf_t _bdbm_dm_inf = {
 	.ptr_private = NULL,
@@ -57,7 +62,8 @@ extern bdbm_drv_info_t* _bdi_dm;
  ***********************************/
 
 /**
- *
+ * finds /dev/nvme0n1 from devices.
+ * returns NULL if there is not.
  */
 static struct nvm_dev* nvm_find_nvm_dev (const char* name)
 {
@@ -68,25 +74,6 @@ static struct nvm_dev* nvm_find_nvm_dev (const char* name)
 			return dev;
 
 	return NULL;
-}
-
-/**
- * 
- */
-static inline struct ppa_addr create_blk_addr (uint64_t block_no,
-		uint64_t punit_id, uint64_t channel_no, uint64_t plane_no)
-{
-	struct ppa_addr p;
-
-	p.ppa = 0;
-	p.g.blk = block_no;
-	p.g.lun = punit_id / 16;
-	p.g.ch = channel_no % 16;
-	p.g.pl = plane_no;
-	p.g.pg = 0;
-	p.g.sec = 0;
-
-	return p;
 }
 
 /**
@@ -101,12 +88,14 @@ static inline struct ppa_addr create_blk_addr (uint64_t block_no,
 uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 {
 	struct nvm_dev* dev;
+	struct nvm_tgt_dev* tgt_dev;
+	bdbm_ocssd_t* ocssd_drv;
 	char* name = "nvme0n1";
 
 	*params = get_default_device_params ();
 	bdi->parm_dev = *params;
 
-	display_device_params (params);	
+	//display_device_params (params);	
 
 	down_write (&nvm_lock);
 	dev = nvm_find_nvm_dev (name);
@@ -118,7 +107,22 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 		return -EINVAL;
 	}
 
-	bdi->ptr_dm_inf->ptr_private = (void*)dev;
+	init_global_caches ();
+
+	/* initialize ocssd_drv */
+	ocssd_drv = kzalloc (sizeof(bdbm_ocssd_t), GFP_KERNEL);
+
+	tgt_dev = nvm_create_tgt_dev (dev, 0, 127);
+	ocssd_drv->tgt_dev = tgt_dev;
+
+	ocssd_drv->read_rq_pool = mempool_create_slab_pool (
+			tgt_dev->geo.nr_luns, general_rq_cache);
+	ocssd_drv->write_rq_pool = mempool_create_slab_pool (
+			tgt_dev->geo.nr_luns, write_rq_cache);
+	ocssd_drv->erase_rq_pool = mempool_create_slab_pool (
+			tgt_dev->geo.nr_luns, general_rq_cache);
+
+	bdi->ptr_dm_inf->ptr_private = (void*)ocssd_drv;
 
 	bdbm_msg ("[dm_ocssd_probe] probe done!");
 
@@ -134,30 +138,9 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
  */
 uint32_t dm_ocssd_open (bdbm_drv_info_t* bdi)
 {
-//	struct nvm_dev* dev;
-//	bdbm_llm_req_t e_req;
-//	int block_no, punit_id;
-//
-//	dev = (struct nvm_dev*)bdi->ptr_dm_inf->ptr_private;
-//
-//	memset (&e_req, 0x00, sizeof (bdbm_llm_req_t));
-//	e_req.req_type = REQTYPE_GC_ERASE;
-//
-//	/* erase blocks. */
-//	for (punit_id = 0; punit_id < 128; ++punit_id)
-//	{
-//		e_req.phyaddr.punit_id = punit_id / 16;
-//		e_req.phyaddr.channel_no = punit_id % 16;
-//		pr_info ("bdbm: erasing blocks.... (%d/127)\n", punit_id);
-//
-//		for (block_no = 0; block_no < 32; ++block_no)
-//		{
-//			e_req.phyaddr.block_no = block_no;
-//			dev_ocssd_submit_vio (dev, &e_req);
-//		}
-//	}
-	pr_info ("bdbm: erasing blocks.... done! OCSSD is initialized.\n");
-	
+	//bdi->ptr_ftl_inf->scan_badblocks (bdi);
+
+	pr_info ("[dm_ocssd_open] Done! OCSSD is initialized.\n");
 	return 0;
 }
 
@@ -168,7 +151,18 @@ uint32_t dm_ocssd_open (bdbm_drv_info_t* bdi)
  */
 void dm_ocssd_close (bdbm_drv_info_t* bdi)
 {
-	return;
+	bdbm_ocssd_t* ocssd_drv = (bdbm_ocssd_t*)bdi->ptr_dm_inf->ptr_private;
+	struct nvm_tgt_dev* tgt_dev = ocssd_drv->tgt_dev;
+
+	nvm_remove_tgt_dev (tgt_dev);
+
+	mempool_destroy (ocssd_drv->read_rq_pool);
+	mempool_destroy (ocssd_drv->write_rq_pool);
+	mempool_destroy (ocssd_drv->erase_rq_pool);
+
+	free_global_caches ();
+
+	kfree (ocssd_drv);
 }
 
 /**
@@ -180,27 +174,9 @@ void dm_ocssd_close (bdbm_drv_info_t* bdi)
  */
 uint32_t dm_ocssd_make_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 {
-	struct nvm_dev* dev;
-	int ret = -1;
+	bdbm_ocssd_t* ocssd_drv = (bdbm_ocssd_t*)_bdi_dm->ptr_dm_inf->ptr_private;
 
-	if (bdi == NULL)
-	{
-		pr_err ("[dm_ocssd_make_req] bdi is NULL\n");
-		return -1;
-	}
-
-	dev = (struct nvm_dev*)bdi->ptr_dm_inf->ptr_private;
-	if (dev == NULL)
-	{
-		pr_err ("[dm_ocssd_make_req] device information is NULL\n");
-		return -1;
-	}
-
-	ret = dev_ocssd_submit_vio (dev, ptr_llm_req);
-
-	dm_ocssd_end_req (bdi, ptr_llm_req);
-
-	return ret;
+	return dev_ocssd_make_req (ocssd_drv, ptr_llm_req);
 }
 
 /**
@@ -212,7 +188,35 @@ uint32_t dm_ocssd_make_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 void dm_ocssd_end_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 {
 	bdbm_bug_on (ptr_llm_req == NULL);
-	bdbm_bug_on (ptr_llm_req->ptr_qitem == NULL);
 	bdi->ptr_llm_inf->end_req (bdi, ptr_llm_req);
 }
+
+static int init_global_caches (void)
+{
+	general_rq_cache = kmem_cache_create("bdbm_g_rq",
+			sizeof(struct nvm_rq) + 16, 0, 0, NULL);
+	write_rq_cache = kmem_cache_create("bdbm_w_qr", 
+			sizeof(struct nvm_rq) + 32, 0, 0, NULL);
+
+	return 0;
+}
+
+static void free_global_caches (void)
+{
+	kmem_cache_destroy (general_rq_cache);
+	kmem_cache_destroy (write_rq_cache);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
