@@ -125,7 +125,7 @@ static bdbm_blkio_req_t* __get_blkio_req (struct bio *bio)
             br->bi_bvec_ptr[br->bi_bvec_cnt] = (uint8_t*)page_address (bvec.bv_page);
             br->bi_bvec_cnt++;
 
-            if (br->bi_bvec_cnt >= BDBM_BLKIO_MAX_VECS) {
+            if (br->bi_bvec_cnt > BDBM_BLKIO_MAX_VECS) {
                 /* NOTE: this is an impossible case unless kernel parameters are changed */
                 bdbm_error ("oops! # of vectors in bio is larger than %u %llu (type=%llu)", 
                         BDBM_BLKIO_MAX_VECS, br->bi_bvec_cnt, br->bi_rw);

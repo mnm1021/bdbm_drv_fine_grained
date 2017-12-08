@@ -416,9 +416,9 @@ static void dev_ocssd_end_io (struct nvm_rq* rqd)
 
 	req->ret = rqd->error;
 
-	if (req->ret)
+	if (rqd->error)
 	{
-		pr_err ("bdbm: request %x returned %x error code.\n", req->ret);
+		pr_err ("bdbm: request %x returned %x error code.\n", rqd->opcode, rqd->error);
 	}
 
 	dev_ocssd_free_rqd (ocssd_drv, rqd, req->req_type);
