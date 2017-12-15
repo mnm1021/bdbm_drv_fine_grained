@@ -1,10 +1,19 @@
 /**
+ * Author: Yongseok Jin
+ * File: devices/ocssd/dev_ocssd.c
  *
+ * Description: Functions to send requests to CNEX-8800.
  */
 
 #include "dev_ocssd.h"
 #include "dm_ocssd.h"
 #include "bdbm_drv.h"
+
+extern bdbm_drv_info_t* _bdi_dm;
+
+/***************************************
+ * structs for CNEX-8800 compatibility *
+ ***************************************/
 
 typedef struct {
 	u64 reserved;
@@ -28,8 +37,6 @@ struct nvm_dev_map {
 };
 
 #define DMA_META_SIZE (64 * sizeof(meta_struct))
-
-extern bdbm_drv_info_t* _bdi_dm;
 
 /********************
  * inline functions *
@@ -62,6 +69,13 @@ static inline struct ppa_addr convert_addr (bdbm_phyaddr_t phyaddr,
 
 static void dev_ocssd_end_io (struct nvm_rq* rqd);
 
+/**
+ * allocates 'struct nvm_rq' for given type from memory pool.
+ *
+ * @param ocssd_drv (bdbm_ocssd_t*):	target device and memory pool
+ * @param type (int):					request type
+ * @return:								nvm request struct pointer to send to device
+ */
 struct nvm_rq* dev_ocssd_alloc_rqd (bdbm_ocssd_t* ocssd_drv, int type)
 {
 	mempool_t* pool;
@@ -107,6 +121,13 @@ struct nvm_rq* dev_ocssd_alloc_rqd (bdbm_ocssd_t* ocssd_drv, int type)
 	return rqd;
 }
 
+/**
+ * deallocates given nvm request struct.
+ *
+ * @param ocssd_drv (bdbm_ocssd_t*):	target device and memory pool
+ * @param rqd (struct nvm_rq*):			request struct pointer to be deallocated
+ * @param type (int):					request type
+ */
 void dev_ocssd_free_rqd (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd, int type)
 {
 	struct nvm_tgt_dev* dev = ocssd_drv->tgt_dev;
@@ -144,6 +165,31 @@ void dev_ocssd_free_rqd (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd, int type)
  * functions to handle I/Os *
  ****************************/
 
+/**
+ * sets physical page list for given address.
+ * tip) Low-level request of blueDBM assigns 16(4 sectors per page * 4 planes)
+ *		physical addresses if it is read/write request.
+ * 		Or if erasing, it assigns 4(4 planes) physical addresses.
+ *		this sets the physical addresses according to the physical address on
+ *		BlueDBM's low-level request, since blueDBM's page is set to be
+ * 		64K(4K * 4 sector * 4 plane) size.
+ *
+ * ex)	If low-level request of BlueDBM writes to the address
+ *		[channel 0, block 0, page 1],
+ *		This function sets addresses into
+ *		[ch 0, blk 0, pg 1, sec 0, pl 0]
+ *		[ch 0, blk 0, pg 1, sec 1, pl 0]
+ *		[ch 0, blk 0, pg 1, sec 2, pl 0]
+ *		[ch 0, blk 0, pg 1, sec 3, pl 0]
+ *		[ch 0, blk 0, pg 1, sec 0, pl 1]
+ *		[ch 0, blk 0, pg 1, sec 1, pl 1]
+ *		...
+ *		[ch 0, blk 0, pg 1, sec 3, pl 3]
+ *
+ * FIXME) this function is to be modified if mapping policy changes.
+ *
+ * @param rqd (struct nvm_rq*):		given nvm requests.
+ */
 static void dev_ocssd_set_ppalist (struct nvm_rq* rqd)
 {
 	meta_struct* meta_list = rqd->meta_list;
@@ -173,11 +219,27 @@ static void dev_ocssd_set_ppalist (struct nvm_rq* rqd)
 	}
 }
 
+/**
+ * highest-level function of request submission to device.
+ *
+ * @param tgt_dev (struct nvm_tgt_dev*):	target device created by BlueDBM
+ * @param rqd (struct nvm_rq*):				nvm request to be submitted.
+ * @return:									submit status (0 if successful)
+ */
 static int dev_ocssd_submit_io (struct nvm_tgt_dev* tgt_dev, struct nvm_rq* rqd)
 {
 	return nvm_submit_io (tgt_dev, rqd);
 }
 
+/**
+ * sets up the bio structs and rqd,
+ * and submits the given read request to the device.
+ *
+ * @param ocssd_drv (bdbm_ocssd_t*):	target device and memory pool
+ * @param rqd (struct nvm_rq*):			nvm request to be set up and submitted
+ * @param llm_req (bdbm_llm_req_t*):	BlueDBM low-level request to be submitted
+ * @return:								submit status
+ */
 static int dev_ocssd_read (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 		bdbm_llm_req_t* llm_req)
 {
@@ -227,6 +289,15 @@ static int dev_ocssd_read (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 	return NVM_IO_OK;
 }
 
+/**
+ * sets up the bio structs and rqd,
+ * and submits the given write request to the device.
+ *
+ * @param ocssd_drv (bdbm_ocssd_t*):	target device and memory pool
+ * @param rqd (struct nvm_rq*):			nvm request to be set up and submitted
+ * @param llm_req (bdbm_llm_req_t*):	BlueDBM low-level request to be submitted
+ * @return:								submit status
+ */
 static int dev_ocssd_write (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 		bdbm_llm_req_t* llm_req)
 {
@@ -316,6 +387,14 @@ static int dev_ocssd_write (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 	return NVM_IO_OK;
 }
 
+/**
+ * sets up the rqd and submits the given erase request to the device.
+ *
+ * @param ocssd_drv (bdbm_ocssd_t*):	target device and memory pool
+ * @param rqd (struct nvm_rq*):			nvm request to be set up and submitted
+ * @param llm_req (bdbm_llm_req_t*):	BlueDBM low-level request to be submitted
+ * @return:								submit status
+ */
 static int dev_ocssd_erase (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 		bdbm_llm_req_t* llm_req)
 {
@@ -392,7 +471,9 @@ int dev_ocssd_make_req (bdbm_ocssd_t* ocssd_drv, bdbm_llm_req_t* req)
 }
 
 /**
- * I/O callback function.
+ * I/O callback function for nvm request.
+ *
+ * @param rqd (struct nvm_rq*):		I/O request that has finished by device.
  */
 static void dev_ocssd_end_io (struct nvm_rq* rqd)
 {

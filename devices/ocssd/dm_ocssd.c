@@ -95,8 +95,6 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 	*params = get_default_device_params ();
 	bdi->parm_dev = *params;
 
-	//display_device_params (params);	
-
 	down_write (&nvm_lock);
 	dev = nvm_find_nvm_dev (name);
 	up_write (&nvm_lock);
@@ -191,16 +189,22 @@ void dm_ocssd_end_req (bdbm_drv_info_t* bdi, bdbm_llm_req_t* ptr_llm_req)
 	bdi->ptr_llm_inf->end_req (bdi, ptr_llm_req);
 }
 
+/**
+ * initializes global caches for requests.
+ */
 static int init_global_caches (void)
 {
 	general_rq_cache = kmem_cache_create("bdbm_g_rq",
 			sizeof(struct nvm_rq) + 16, 0, 0, NULL);
-	write_rq_cache = kmem_cache_create("bdbm_w_qr", 
+	write_rq_cache = kmem_cache_create("bdbm_w_rq", 
 			sizeof(struct nvm_rq) + 32, 0, 0, NULL);
 
 	return 0;
 }
 
+/**
+ * frees global caches.
+ */
 static void free_global_caches (void)
 {
 	kmem_cache_destroy (general_rq_cache);
