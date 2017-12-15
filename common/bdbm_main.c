@@ -247,7 +247,10 @@ int bdbm_drv_run (bdbm_drv_info_t* bdi)
 	/* init performance monitor */
 	pmu_create (bdi);
 
-	bdbm_msg ("[bdbm_drv_main] bdbm_drv is registered!");
+	//bdbm_msg ("[bdbm_drv_main] bdbm_drv is registered!");
+	bdbm_msg ("[bdbm_drv_main] bdbm_drv is registered! now cleaning up blocks...");
+	bdi->ptr_ftl_inf->scan_badblocks (bdi);
+	bdbm_msg ("[bdbm_drv_main] finished cleaning up!");
 
 	return 0;
 

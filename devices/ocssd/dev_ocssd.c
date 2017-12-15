@@ -78,8 +78,8 @@ static void dev_ocssd_end_io (struct nvm_rq* rqd);
  */
 struct nvm_rq* dev_ocssd_alloc_rqd (bdbm_ocssd_t* ocssd_drv, int type)
 {
-	mempool_t* pool;
 	struct nvm_rq* rqd;
+	mempool_t* pool;
 	int rq_size;
 
 	switch (type)
@@ -303,42 +303,45 @@ static int dev_ocssd_write (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 {
 	struct nvm_tgt_dev* dev = ocssd_drv->tgt_dev;
 	struct bio* bio;
-	struct nvm_rq* e_rqd;
+	//struct nvm_rq* e_rqd;
 	dev_ocssd_private_t* ocssd_priv;
 	uint8_t** kp_ptr = llm_req->fmain.kp_ptr;
 	int ret = NVM_IO_ERR;
 	int i;
 
-	/* erase first if page number is 0. */
-	if (llm_req->phyaddr.page_no == 0)
-	{
-		/* erase request creation */
-		e_rqd = mempool_alloc (ocssd_drv->erase_rq_pool, GFP_KERNEL);
-		memset (e_rqd, 0, sizeof(struct nvm_rq) + 16);
-		e_rqd->opcode = NVM_OP_ERASE;
-		e_rqd->nr_ppas = 4;
-		e_rqd->flags = dev->geo.plane_mode >> 1;
-		e_rqd->bio = NULL;
-
-		/* ppa, meta list initialization */
-		e_rqd->meta_list = nvm_dev_dma_alloc (dev->parent, GFP_KERNEL,
-								&e_rqd->dma_meta_list);
-	
-		e_rqd->ppa_list = e_rqd->meta_list + DMA_META_SIZE;
-		e_rqd->dma_ppa_list =e_rqd->dma_meta_list + DMA_META_SIZE;
-
-		e_rqd->ppa_list[0] = convert_addr (llm_req->phyaddr, 0, 0);
-		e_rqd->ppa_list[1] = convert_addr (llm_req->phyaddr, 1, 0);
-		e_rqd->ppa_list[2] = convert_addr (llm_req->phyaddr, 2, 0);
-		e_rqd->ppa_list[3] = convert_addr (llm_req->phyaddr, 3, 0);
-
-		/* submit e_rqd in synchronously */
-		nvm_submit_io_sync (dev, e_rqd);
-	
-		/* free e_rqd */
-		nvm_dev_dma_free (dev->parent, e_rqd->meta_list, e_rqd->dma_meta_list);
-		mempool_free (e_rqd, ocssd_drv->erase_rq_pool);
-	}
+	/*
+	 * erase first if page number is 0.
+	 * FIXME this should be abandoned due to performance issue.
+	 */
+//	if (llm_req->phyaddr.page_no == 0)
+//	{
+//		/* erase request creation */
+//		e_rqd = mempool_alloc (ocssd_drv->erase_rq_pool, GFP_KERNEL);
+//		memset (e_rqd, 0, sizeof(struct nvm_rq) + 16);
+//		e_rqd->opcode = NVM_OP_ERASE;
+//		e_rqd->nr_ppas = 4;
+//		e_rqd->flags = dev->geo.plane_mode >> 1;
+//		e_rqd->bio = NULL;
+//
+//		/* ppa, meta list initialization */
+//		e_rqd->meta_list = nvm_dev_dma_alloc (dev->parent, GFP_KERNEL,
+//								&e_rqd->dma_meta_list);
+//	
+//		e_rqd->ppa_list = e_rqd->meta_list + DMA_META_SIZE;
+//		e_rqd->dma_ppa_list =e_rqd->dma_meta_list + DMA_META_SIZE;
+//
+//		e_rqd->ppa_list[0] = convert_addr (llm_req->phyaddr, 0, 0);
+//		e_rqd->ppa_list[1] = convert_addr (llm_req->phyaddr, 1, 0);
+//		e_rqd->ppa_list[2] = convert_addr (llm_req->phyaddr, 2, 0);
+//		e_rqd->ppa_list[3] = convert_addr (llm_req->phyaddr, 3, 0);
+//
+//		/* submit e_rqd in synchronously */
+//		nvm_submit_io_sync (dev, e_rqd);
+//	
+//		/* free e_rqd */
+//		nvm_dev_dma_free (dev->parent, e_rqd->meta_list, e_rqd->dma_meta_list);
+//		mempool_free (e_rqd, ocssd_drv->erase_rq_pool);
+//	}
 
 	ocssd_priv = kmalloc (sizeof(dev_ocssd_private_t), GFP_KERNEL);
 	ocssd_priv->llm_req = llm_req;
@@ -421,6 +424,8 @@ static int dev_ocssd_erase (bdbm_ocssd_t* ocssd_drv, struct nvm_rq* rqd,
 
 	dev_ocssd_set_ppalist (rqd);
 
+	pr_info ("bdbm: [dev_ocssd_erase] %p request is submitted\n", rqd);
+
 	/* submit io */
 	ret = dev_ocssd_submit_io (dev, rqd);
 
@@ -499,7 +504,7 @@ static void dev_ocssd_end_io (struct nvm_rq* rqd)
 
 	if (rqd->error)
 	{
-		pr_err ("bdbm: request %x returned %x error code.\n", rqd->opcode, rqd->error);
+		pr_err ("bdbm: request %p returned %x error code.\n", rqd, rqd->error);
 	}
 
 	dev_ocssd_free_rqd (ocssd_drv, rqd, req->req_type);

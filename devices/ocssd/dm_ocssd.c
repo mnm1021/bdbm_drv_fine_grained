@@ -114,11 +114,11 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 	ocssd_drv->tgt_dev = tgt_dev;
 
 	ocssd_drv->read_rq_pool = mempool_create_slab_pool (
-			tgt_dev->geo.nr_luns, general_rq_cache);
+			128, general_rq_cache);
 	ocssd_drv->write_rq_pool = mempool_create_slab_pool (
-			tgt_dev->geo.nr_luns, write_rq_cache);
+			128, write_rq_cache);
 	ocssd_drv->erase_rq_pool = mempool_create_slab_pool (
-			tgt_dev->geo.nr_luns, general_rq_cache);
+			128, general_rq_cache);
 
 	bdi->ptr_dm_inf->ptr_private = (void*)ocssd_drv;
 
@@ -129,16 +129,13 @@ uint32_t dm_ocssd_probe (bdbm_drv_info_t* bdi, bdbm_device_params_t* params)
 }
 
 /**
- * initializes given NVMe Device.
+ * initializes given NVMe Device. (nothing to do on this function)
  *
  * @param bdi (bdbm_drv_info_t*): 	device information
  * @return: 						0 if successful, else if not.
  */
 uint32_t dm_ocssd_open (bdbm_drv_info_t* bdi)
 {
-	//bdi->ptr_ftl_inf->scan_badblocks (bdi);
-
-	pr_info ("[dm_ocssd_open] Done! OCSSD is initialized.\n");
 	return 0;
 }
 
